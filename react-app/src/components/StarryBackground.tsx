@@ -1,69 +1,78 @@
 import { useEffect, useRef } from 'react';
 
-interface Particle {
-  x: number;
-  y: number;
-  size: number;
-  speedX: number;
-  speedY: number;
-  opacity: number;
-}
-
 export default function StarryBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.log('Canvas not found');
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('Context not found');
+      return;
+    }
+
+    console.log('Initializing particle animation...');
 
     // Set canvas size
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    resizeCanvas();
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-    // Particle configuration
+    const particles: any[] = [];
     const particleCount = window.innerWidth < 768 ? 50 : 100;
-    const particles: Particle[] = [];
+
+    // Particle class matching reference implementation
+    class Particle {
+      x: number;
+      y: number;
+      size: number;
+      speedX: number;
+      speedY: number;
+      opacity: number;
+
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 1;
+        this.speedX = Math.random() * 0.5 - 0.25;
+        this.speedY = Math.random() * 0.5 - 0.25;
+        this.opacity = Math.random() * 0.5 + 0.2;
+      }
+
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+
+        if (this.x > canvas.width) this.x = 0;
+        if (this.x < 0) this.x = canvas.width;
+        if (this.y > canvas.height) this.y = 0;
+        if (this.y < 0) this.y = canvas.height;
+      }
+
+      draw() {
+        if (!ctx) return;
+        ctx.fillStyle = `rgba(255, 107, 53, ${this.opacity})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     // Create particles
     for (let i = 0; i < particleCount; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 2 + 1,
-        speedX: Math.random() * 0.5 - 0.25,
-        speedY: Math.random() * 0.5 - 0.25,
-        opacity: Math.random() * 0.5 + 0.2,
-      });
+      particles.push(new Particle());
     }
 
-    // Update particle position
-    const updateParticle = (particle: Particle) => {
-      particle.x += particle.speedX;
-      particle.y += particle.speedY;
-
-      // Wrap around screen edges
-      if (particle.x > canvas.width) particle.x = 0;
-      if (particle.x < 0) particle.x = canvas.width;
-      if (particle.y > canvas.height) particle.y = 0;
-      if (particle.y < 0) particle.y = canvas.height;
-    };
-
-    // Draw particle
-    const drawParticle = (particle: Particle) => {
-      ctx.fillStyle = `rgba(255, 107, 53, ${particle.opacity})`;
-      ctx.beginPath();
-      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-      ctx.fill();
-    };
+    console.log(`Created ${particles.length} particles`);
 
     // Connect nearby particles with lines
-    const connectParticles = () => {
+    function connectParticles() {
+      if (!ctx) return;
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -80,52 +89,59 @@ export default function StarryBackground() {
           }
         }
       }
-    };
+    }
 
     // Animation loop
-    const animate = () => {
+    function animateParticles() {
+      if (!ctx || !canvas) return;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      particles.forEach((particle) => {
-        updateParticle(particle);
-        drawParticle(particle);
+      particles.forEach(particle => {
+        particle.update();
+        particle.draw();
       });
 
       connectParticles();
-      requestAnimationFrame(animate);
-    };
+      animationFrameIdRef.current = requestAnimationFrame(animateParticles);
+    }
 
-    animate();
+    // Start animation
+    animateParticles();
+    console.log('Animation started with', particles.length, 'particles');
 
     // Handle window resize
     const handleResize = () => {
-      resizeCanvas();
+      if (!canvas) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     };
     window.addEventListener('resize', handleResize);
 
+    // Cleanup function
     return () => {
+      console.log('Cleaning up animation...');
       window.removeEventListener('resize', handleResize);
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden" style={{ backgroundColor: '#1a1f3a' }}>
-      {/* Particle Canvas */}
+    <>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: 'none' }}
-      />
-
-      {/* Subtle gradient overlay for depth */}
-      <div
-        className="absolute inset-0"
+        className="fixed inset-0 w-full h-full"
         style={{
-          background: 'linear-gradient(to bottom, rgba(10, 14, 39, 0.5) 0%, rgba(26, 31, 58, 0.8) 100%)',
-          pointerEvents: 'none'
+          backgroundColor: '#1a1f3a',
+          zIndex: 0,
+          pointerEvents: 'none',
+          display: 'block'
         }}
       />
-    </div>
+    </>
   );
 }
 
